@@ -9,6 +9,7 @@ import {
   max,
   mix,
   mod,
+  smoothstep,
   step,
   uint,
   uv,
@@ -100,10 +101,14 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
 
   material.colorNode = Fn(() => {
     const speed = velocityBuffer.toAttribute().length();
-    const t = speed.div(params.maxSpeed).clamp(0.0, 1.0);
-    const slow = color('#46a6ff');
-    const fast = color('#ffb35a');
-    return vec4(mix(slow, fast, t), 1.0);
+    
+    // Transición suave: < 1.5 es azul, > 6.0 es dorado
+    const mixFactor = smoothstep(1.5, 6.0, speed);
+    
+    const slowColor = color('#3ea8ff');
+    const fastColor = color('#fff4d6');
+    
+    return vec4(mix(slowColor, fastColor, mixFactor), 1.0);
   })();
 
   // Circular sprite mask, avoiding visible square planes.
