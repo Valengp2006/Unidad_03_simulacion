@@ -7,9 +7,8 @@ import { createParameters } from './simulation/parameters.js';
 import { createSimulation } from './simulation/createSimulation.js';
 import { createLabPanel } from './ui/labPanel.js';
 
-const PARTICLE_COUNT = 131072; //2^17. Increase only after measuring performance.
+const PARTICLE_COUNT = 131072;
 
-// --- CONFIGURACIÓN DE SINGULARIDAD ---
 const PERFORMANCE_SCENES = {
   1: {
     name: 'NUBE EN REPOSO',
@@ -61,9 +60,8 @@ async function main() {
     throw new Error('Este proyecto requiere WebGPU para ejecutar compute shaders.');
   }
 
-  // THREE.JS MENTAL MODEL: scene + camera + renderer ---------------------
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#03050a'); // Fondo ligeramente más oscuro
+  scene.background = new THREE.Color('#03050a');
 
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 100);
   camera.position.set(0, 0, 11);
@@ -82,7 +80,6 @@ async function main() {
   const params = createParameters();
   const simulation = createSimulation({ renderer, scene, params, count: PARTICLE_COUNT });
 
-  // LAB HELPERS -----------------------------------------------------------
   const attractorHelper = new THREE.Mesh(
     new THREE.SphereGeometry(0.12, 16, 12),
     new THREE.MeshBasicMaterial({ color: '#ffffff' })
@@ -91,16 +88,13 @@ async function main() {
   const axes = new THREE.AxesHelper(1.5);
   scene.add(axes);
 
-  // POINTER -> WORLD POSITION --------------------------------------------
   const pointerNdc = new THREE.Vector2();
   const raycaster = new THREE.Raycaster();
   const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const hit = new THREE.Vector3();
 
   addEventListener('pointermove', (event) => {
-    // Si estamos en performance, el mouse no controla el atractor
     if (mode === 'PERFORMANCE') return;
-
     pointerNdc.x = (event.clientX / innerWidth) * 2 - 1;
     pointerNdc.y = -(event.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointerNdc, camera);
@@ -110,12 +104,9 @@ async function main() {
     }
   });
 
-  // ESTADOS DE LA APLICACIÓN ---------------------------------------------
   let paused = false;
   let mode = 'LAB';
   let panel;
-  
-  // Variables para la interpolación de Singularidad
   let performanceScene = 1;
   let transitionSpeed = 2.8;
   let supernovaTimer = 0;
@@ -146,10 +137,7 @@ async function main() {
     if (mode !== 'PERFORMANCE') return;
     performanceScene = id;
     performanceTarget = PERFORMANCE_SCENES[id];
-    
-    // Si es Supernova, le damos 0.9 segundos antes de volver al reposo
     supernovaTimer = (id === 5) ? 0.9 : 0;
-    
     hud.innerHTML = `<strong>PERFORMANCE</strong> · ${performanceTarget.name} · 1–5: escenas · R: reset`;
   };
 
@@ -162,7 +150,6 @@ async function main() {
     document.body.classList.toggle('performance-mode', !lab);
 
     if (!lab) {
-      // Entrando a PERFORMANCE: Anclar al origen
       params.attractor.value.set(0, 0, 0);
       attractorHelper.position.set(0, 0, 0);
       startPerformanceScene(1);
@@ -176,11 +163,10 @@ async function main() {
 
     if (supernovaTimer > 0) {
       supernovaTimer -= deltaSeconds;
-      if (supernovaTimer <= 0) startPerformanceScene(1); // Decaimiento
+      if (supernovaTimer <= 0) startPerformanceScene(1);
     }
 
     const target = performanceTarget;
-    // Función de easing asintótica
     const t = 1 - Math.exp(-transitionSpeed * deltaSeconds);
 
     params.radialEnabled.value = THREE.MathUtils.lerp(params.radialEnabled.value, target.radialEnabled, t);
@@ -208,7 +194,6 @@ async function main() {
   document.body.append(hud);
   setMode('LAB');
 
-  // CONTROLES DE TECLADO -------------------------------------------------
   addEventListener('keydown', (event) => {
     if (event.repeat) return;
     if (event.code === 'KeyP') { setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB'); return; }
@@ -218,7 +203,6 @@ async function main() {
       return;
     }
 
-    // Gestionar teclas del 1 al 5
     const digit = Number(event.code.replace('Digit', ''));
     if (digit >= 1 && digit <= 5) {
       if (mode === 'PERFORMANCE') {
@@ -238,11 +222,9 @@ async function main() {
 
   simulation.reset();
 
-  // FRAME LOOP ------------------------------------------------------------
   let lastTime = performance.now();
   
   renderer.setAnimationLoop((time) => {
-    // Calculamos el delta de tiempo para la interpolación
     const deltaSeconds = Math.min((time - lastTime) / 1000, 0.05);
     lastTime = time;
 
