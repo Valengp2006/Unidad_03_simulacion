@@ -5,7 +5,7 @@ import './styles.css';
 
 import { createParameters } from './simulation/parameters.js';
 import { createSimulation } from './simulation/createSimulation.js';
-import { createLabPanel } from './ui/labPanel.js'; // Traemos de vuelta tu panel
+import { createLabPanel } from './ui/labPanel.js';
 
 const PARTICLE_COUNT = 131072;
 
@@ -66,7 +66,6 @@ async function main() {
   let savedRadialStrength = params.radialStrength.value;
   let savedRadialEnabled = params.radialEnabled.value;
 
-  // LAB: Pruebas adaptadas al proyecto "Singularidad"
   const applyPreset = (id) => {
     params.windEnabled.value = 0;
     params.radialEnabled.value = 0;
@@ -75,11 +74,11 @@ async function main() {
     params.wind.value.set(0, 0, 0);
     params.initialSpeed.value = 0;
 
-    if (id === 'inertia') { params.initialSpeed.value = 0.8; } // Dispersión
-    else if (id === 'wind') { params.windEnabled.value = 1; params.wind.value.set(1.5, 0, 0); } // Corriente estelar
-    else if (id === 'attract') { params.radialEnabled.value = 1; params.radialStrength.value = 4.0; params.dragEnabled.value = 1; params.dragCoefficient.value = 0.1;} // Atracción masiva
-    else if (id === 'repel') { params.radialEnabled.value = 1; params.radialStrength.value = -3.0; } // Rechazo
-    else if (id === 'vortex') { // Sistema orbital
+    if (id === 'inertia') { params.initialSpeed.value = 0.8; }
+    else if (id === 'wind') { params.windEnabled.value = 1; params.wind.value.set(1.5, 0, 0); }
+    else if (id === 'attract') { params.radialEnabled.value = 1; params.radialStrength.value = 4.0; params.dragEnabled.value = 1; params.dragCoefficient.value = 0.1;}
+    else if (id === 'repel') { params.radialEnabled.value = 1; params.radialStrength.value = -3.0; }
+    else if (id === 'vortex') {
       params.radialEnabled.value = 1; params.radialStrength.value = 1.0;
       params.vortexEnabled.value = 1; params.vortexStrength.value = 3.0;
       params.dragEnabled.value = 1; params.dragCoefficient.value = 0.08;
@@ -92,23 +91,23 @@ async function main() {
   hud.className = 'hud';
   document.body.append(hud);
 
-  // PERFORMANCE SCENES: Expandido a 7 fases para mayor fluidez
+  // FÍSICA CORREGIDA: Construcción lógica hacia el clímax
   const sceneTargets = {
-    1: { radialStrength: 0.0, vortexStrength: 0.0, dragCoefficient: 0.05, maxSpeed: 1.5 },   // Reposo
-    2: { radialStrength: 0.5, vortexStrength: 0.1, dragCoefficient: 0.10, maxSpeed: 2.0 },   // Despertar gravitacional
-    3: { radialStrength: 1.2, vortexStrength: 0.6, dragCoefficient: 0.15, maxSpeed: 2.8 },   // Formación de la espiral
-    4: { radialStrength: 2.0, vortexStrength: 2.2, dragCoefficient: 0.12, maxSpeed: 4.5 },   // Disco de acreción
-    5: { radialStrength: 3.5, vortexStrength: 3.0, dragCoefficient: 0.08, maxSpeed: 6.5 },   // Resonancia orbital
-    6: { radialStrength: 5.5, vortexStrength: 1.2, dragCoefficient: 0.04, maxSpeed: 9.0 },   // Colapso acelerado
-    7: { radialStrength: -8.0, vortexStrength: 0.5, dragCoefficient: 0.02, maxSpeed: 12.0 }  // Supernova
+    1: { radialStrength: 0.0, vortexStrength: 0.0, dragCoefficient: 0.10, maxSpeed: 1.0 },   // 1. Reposo absoluto
+    2: { radialStrength: 0.5, vortexStrength: 0.2, dragCoefficient: 0.08, maxSpeed: 2.0 },   // 2. Comienza a atraerse
+    3: { radialStrength: 1.0, vortexStrength: 1.0, dragCoefficient: 0.05, maxSpeed: 3.5 },   // 3. Empieza a girar (Espiral)
+    4: { radialStrength: 2.5, vortexStrength: 2.5, dragCoefficient: 0.03, maxSpeed: 5.0 },   // 4. Disco apretado y rápido
+    5: { radialStrength: 4.0, vortexStrength: 4.5, dragCoefficient: 0.08, maxSpeed: 7.0 },   // 5. Fricción crítica (torbellino violento)
+    6: { radialStrength: 8.0, vortexStrength: 0.2, dragCoefficient: 0.01, maxSpeed: 12.0 },  // 6. Colapso (se apaga el vórtice, succión total al centro)
+    7: { radialStrength: -5.0, vortexStrength: 0.5, dragCoefficient: 0.05, maxSpeed: 15.0 }  // 7. Supernova (estado de decaimiento post-explosión)
   };
 
   const SCENE_NAMES = {
     1: 'Nube en reposo', 2: 'Despertar', 3: 'Formación', 
-    4: 'Disco de acreción', 5: 'Resonancia', 6: 'Colapso acelerado', 7: 'Supernova'
+    4: 'Disco de acreción', 5: 'Fricción crítica', 6: 'Colapso total', 7: 'Supernova'
   };
 
-  const SCENE_LERP_SPEED = 0.035; // Lo bajé un poco para que las transiciones sean aún más orgánicas
+  const SCENE_LERP_SPEED = 0.035;
   let currentScene = 1;
   let sceneTarget = sceneTargets[1];
   let supernovaTimer = null;
@@ -117,13 +116,21 @@ async function main() {
     currentScene = id;
     sceneTarget = sceneTargets[id];
     
-    // Solo actualizamos el nombre si estamos en PERFORMANCE
     if (mode === 'PERFORMANCE') {
       hud.innerHTML = `<strong>PERFORMANCE</strong> · <span class="scene-name">${id} · ${SCENE_NAMES[id]}</span> · 1–7: escenas`;
     }
 
     if (supernovaTimer) { clearTimeout(supernovaTimer); supernovaTimer = null; }
-    if (id === 7) supernovaTimer = setTimeout(() => goToScene(4), 1400); // Decae a la escena 4 (Disco) en vez de la 3
+    
+    if (id === 7) {
+      // 💥 SUPERNOVA FIX: Rompemos la interpolación (lerp) aplicando valores extremos instantáneamente
+      params.radialStrength.value = -35.0; // Repulsión masiva en el frame 1
+      params.dragCoefficient.value = 0.0;  // Sin fricción para que salgan disparadas
+      params.vortexStrength.value = 0.0;   // Eliminamos la rotación de golpe
+      
+      // Tras 1.5 segundos de explosión, la nube vuelve a la escena 1 (Reposo) sola
+      supernovaTimer = setTimeout(() => goToScene(1), 1500); 
+    }
   };
 
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -173,7 +180,6 @@ async function main() {
     }
   
     if (mode === 'LAB') {
-      // LAB conserva sus 5 atajos para evaluar las fuerzas
       if (event.code === 'Digit1') applyPreset('inertia');
       if (event.code === 'Digit2') applyPreset('wind');
       if (event.code === 'Digit3') applyPreset('attract');
@@ -188,7 +194,6 @@ async function main() {
         params.radialStrength.value = -(savedRadialStrength || 2.0);
       }
     } else {
-      // PERFORMANCE ahora escucha del 1 al 7
       if (event.code === 'Digit1') goToScene(1);
       if (event.code === 'Digit2') goToScene(2);
       if (event.code === 'Digit3') goToScene(3);
