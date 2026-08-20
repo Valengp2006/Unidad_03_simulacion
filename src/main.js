@@ -7,50 +7,7 @@ import { createParameters } from './simulation/parameters.js';
 import { createSimulation } from './simulation/createSimulation.js';
 import { createLabPanel } from './ui/labPanel.js';
 
-const PARTICLE_COUNT = 131072;
-
-const PERFORMANCE_SCENES = {
-  1: {
-    name: 'NUBE EN REPOSO',
-    radialEnabled: 0, radialStrength: 0,
-    vortexEnabled: 0, vortexStrength: 0,
-    dragEnabled: 1, dragCoefficient: 0.18,
-    maxSpeed: 0.9, timeScale: 0.65,
-    windEnabled: 0, wind: new THREE.Vector3(0, 0, 0)
-  },
-  2: {
-    name: 'FORMACIÓN',
-    radialEnabled: 1, radialStrength: 3.5,
-    vortexEnabled: 0, vortexStrength: 0,
-    dragEnabled: 1, dragCoefficient: 0.12,
-    maxSpeed: 2.5, timeScale: 0.85,
-    windEnabled: 0, wind: new THREE.Vector3(0, 0, 0)
-  },
-  3: {
-    name: 'DISCO DE ACRECIÓN',
-    radialEnabled: 1, radialStrength: 1.6,
-    vortexEnabled: 1, vortexStrength: 2.8,
-    dragEnabled: 1, dragCoefficient: 0.1,
-    maxSpeed: 3.5, timeScale: 1,
-    windEnabled: 0, wind: new THREE.Vector3(0, 0, 0)
-  },
-  4: {
-    name: 'COLAPSO ACELERADO',
-    radialEnabled: 1, radialStrength: 6,
-    vortexEnabled: 1, vortexStrength: 0.4,
-    dragEnabled: 1, dragCoefficient: 0.03,
-    maxSpeed: 8, timeScale: 1.25,
-    windEnabled: 0, wind: new THREE.Vector3(0, 0, 0)
-  },
-  5: {
-    name: 'SUPERNOVA',
-    radialEnabled: 1, radialStrength: -10,
-    vortexEnabled: 1, vortexStrength: 1.2,
-    dragEnabled: 1, dragCoefficient: 0.02,
-    maxSpeed: 10, timeScale: 1.4,
-    windEnabled: 0, wind: new THREE.Vector3(0, 0, 0)
-  }
-};
+const PARTICLE_COUNT = 131072; //2^17. Increase only after measuring performance.
 
 async function main() {
   const mount = document.querySelector('#app');
@@ -61,7 +18,7 @@ async function main() {
   }
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#03050a');
+  scene.background = new THREE.Color('#050607');
 
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 100);
   camera.position.set(0, 0, 11);
@@ -74,7 +31,6 @@ async function main() {
 
   const orbit = new OrbitControls(camera, renderer.domElement);
   orbit.enableDamping = true;
-  orbit.dampingFactor = 0.06;
   orbit.target.set(0, 0, 0);
 
   const params = createParameters();
@@ -94,7 +50,7 @@ async function main() {
   const hit = new THREE.Vector3();
 
   addEventListener('pointermove', (event) => {
-    if (mode === 'PERFORMANCE') return;
+    if (mode !== 'LAB') return;   // ← Guard para modo performance
     pointerNdc.x = (event.clientX / innerWidth) * 2 - 1;
     pointerNdc.y = -(event.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointerNdc, camera);
@@ -107,10 +63,8 @@ async function main() {
   let paused = false;
   let mode = 'LAB';
   let panel;
-  let performanceScene = 1;
-  let transitionSpeed = 2.8;
-  let supernovaTimer = 0;
-  let performanceTarget = PERFORMANCE_SCENES[1];
+  let savedRadialStrength = params.radialStrength.value;
+  let savedRadialEnabled = params.radialEnabled.value;
 
   const applyPreset = (id) => {
     params.windEnabled.value = 0;
@@ -120,26 +74,61 @@ async function main() {
     params.wind.value.set(0, 0, 0);
     params.initialSpeed.value = 0;
 
-    if (id === 'inertia') params.initialSpeed.value = 0.8;
-    else if (id === 'wind') { params.windEnabled.value = 1; params.wind.value.set(1.5, 0, 0); }
-    else if (id === 'attract') { params.radialEnabled.value = 1; params.radialStrength.value = 3.0; }
-    else if (id === 'repel') { params.radialEnabled.value = 1; params.radialStrength.value = -3.0; }
-    else if (id === 'vortex') {
-      params.radialEnabled.value = 1; params.radialStrength.value = 1.0;
-      params.vortexEnabled.value = 1; params.vortexStrength.value = 3.0;
-      params.dragEnabled.value = 1; params.dragCoefficient.value = 0.08;
+    if (id === 'inertia') {
+      params.initialSpeed.value = 0.8;
+    } else if (id === 'wind') {
+      params.windEnabled.value = 1;
+      params.wind.value.set(1.5, 0, 0);
+    } else if (id === 'attract') {
+      params.radialEnabled.value = 1;
+      params.radialStrength.value = 3.0;
+    } else if (id === 'repel') {
+      params.radialEnabled.value = 1;
+      params.radialStrength.value = -3.0;
+    } else if (id === 'vortex') {
+      params.radialEnabled.value = 1;
+      params.radialStrength.value = 1.0;
+      params.vortexEnabled.value = 1;
+      params.vortexStrength.value = 3.0;
+      params.dragEnabled.value = 1;
+      params.dragCoefficient.value = 0.08;
     }
     simulation.reset();
     panel?.refresh();
   };
 
-  const startPerformanceScene = (id) => {
-    if (mode !== 'PERFORMANCE') return;
-    performanceScene = id;
-    performanceTarget = PERFORMANCE_SCENES[id];
-    supernovaTimer = (id === 5) ? 0.9 : 0;
-    hud.innerHTML = `<strong>PERFORMANCE</strong> · ${performanceTarget.name} · 1–5: escenas · R: reset`;
+  const hud = document.createElement('div');
+  hud.className = 'hud';
+  document.body.append(hud);
+
+  // PERFORMANCE SCENES ------------------------------------------------------
+  const sceneTargets = {
+    1: { radialStrength: 0.0, vortexStrength: 0.0, dragCoefficient: 0.05, maxSpeed: 1.5 },
+    2: { radialStrength: 1.2, vortexStrength: 0.3, dragCoefficient: 0.15, maxSpeed: 2.5 },
+    3: { radialStrength: 2.0, vortexStrength: 2.2, dragCoefficient: 0.12, maxSpeed: 4.0 },
+    4: { radialStrength: 4.5, vortexStrength: 1.2, dragCoefficient: 0.04, maxSpeed: 8.0 },
+    5: { radialStrength: -6.0, vortexStrength: 0.5, dragCoefficient: 0.02, maxSpeed: 10.0 }
   };
+  const SCENE_NAMES = {
+    1: 'Nube en reposo', 2: 'Formación', 3: 'Disco de acreción',
+    4: 'Colapso acelerado', 5: 'Supernova'
+  };
+  const SCENE_LERP_SPEED = 0.05;
+  let currentScene = 1;
+  let sceneTarget = sceneTargets[1];
+  let supernovaTimer = null;
+
+  const goToScene = (id) => {
+    currentScene = id;
+    sceneTarget = sceneTargets[id];
+    const label = hud.querySelector('.scene-name');
+    if (label) label.textContent = `${id} · ${SCENE_NAMES[id]}`;
+
+    if (supernovaTimer) { clearTimeout(supernovaTimer); supernovaTimer = null; }
+    if (id === 5) supernovaTimer = setTimeout(() => goToScene(3), 1200);
+  };
+
+  const lerp = (a, b, t) => a + (b - a) * t;
 
   const setMode = (next) => {
     mode = next;
@@ -147,38 +136,24 @@ async function main() {
     panel.setVisible(lab);
     axes.visible = lab;
     attractorHelper.visible = lab;
-    document.body.classList.toggle('performance-mode', !lab);
-
+    document.body.classList.toggle('hide-cursor', !lab);
+  
     if (!lab) {
       params.attractor.value.set(0, 0, 0);
       attractorHelper.position.set(0, 0, 0);
-      startPerformanceScene(1);
-    } else {
-      hud.innerHTML = '<strong>LAB</strong> · P: performance · R: reset · 1–5: pruebas';
+      params.radialEnabled.value = 1;
+      params.vortexEnabled.value = 1;
+      params.dragEnabled.value = 1;
+      params.windEnabled.value = 0;
+      goToScene(1);
+    } else if (supernovaTimer) {
+      clearTimeout(supernovaTimer);
+      supernovaTimer = null;
     }
-  };
-
-  const updatePerformanceTransition = (deltaSeconds) => {
-    if (mode !== 'PERFORMANCE') return;
-
-    if (supernovaTimer > 0) {
-      supernovaTimer -= deltaSeconds;
-      if (supernovaTimer <= 0) startPerformanceScene(1);
-    }
-
-    const target = performanceTarget;
-    const t = 1 - Math.exp(-transitionSpeed * deltaSeconds);
-
-    params.radialEnabled.value = THREE.MathUtils.lerp(params.radialEnabled.value, target.radialEnabled, t);
-    params.radialStrength.value = THREE.MathUtils.lerp(params.radialStrength.value, target.radialStrength, t);
-    params.vortexEnabled.value = THREE.MathUtils.lerp(params.vortexEnabled.value, target.vortexEnabled, t);
-    params.vortexStrength.value = THREE.MathUtils.lerp(params.vortexStrength.value, target.vortexStrength, t);
-    params.dragEnabled.value = THREE.MathUtils.lerp(params.dragEnabled.value, target.dragEnabled, t);
-    params.dragCoefficient.value = THREE.MathUtils.lerp(params.dragCoefficient.value, target.dragCoefficient, t);
-    params.maxSpeed.value = THREE.MathUtils.lerp(params.maxSpeed.value, target.maxSpeed, t);
-    params.timeScale.value = THREE.MathUtils.lerp(params.timeScale.value, target.timeScale, t);
-    params.windEnabled.value = THREE.MathUtils.lerp(params.windEnabled.value, target.windEnabled, t);
-    params.wind.value.lerp(target.wind, t);
+  
+    hud.innerHTML = lab
+      ? '<strong>LAB</strong> · P: performance · R: reset · 1–5: pruebas'
+      : '<strong>PERFORMANCE</strong> · <span class="scene-name">1 · Nube en reposo</span> · 1–5: escenas · mouse: cámara';
   };
 
   panel = createLabPanel({
@@ -189,28 +164,43 @@ async function main() {
     onPauseChange: () => paused = !paused
   });
 
-  const hud = document.createElement('div');
-  hud.className = 'hud';
-  document.body.append(hud);
   setMode('LAB');
 
   addEventListener('keydown', (event) => {
     if (event.repeat) return;
-    if (event.code === 'KeyP') { setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB'); return; }
+    if (event.code === 'KeyP') setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB');
     if (event.code === 'KeyR') {
       simulation.reset();
-      if (mode === 'PERFORMANCE') startPerformanceScene(1);
-      return;
+      if (mode === 'PERFORMANCE') goToScene(1);
     }
-
-    const digit = Number(event.code.replace('Digit', ''));
-    if (digit >= 1 && digit <= 5) {
-      if (mode === 'PERFORMANCE') {
-        startPerformanceScene(digit);
-      } else {
-        const ids = ['inertia', 'wind', 'attract', 'repel', 'vortex'];
-        applyPreset(ids[digit - 1]);
+  
+    if (mode === 'LAB') {
+      if (event.code === 'Digit1') applyPreset('inertia');
+      if (event.code === 'Digit2') applyPreset('wind');
+      if (event.code === 'Digit3') applyPreset('attract');
+      if (event.code === 'Digit4') applyPreset('repel');
+      if (event.code === 'Digit5') applyPreset('vortex');
+  
+      if (event.code === 'Space') {
+        event.preventDefault();
+        savedRadialStrength = params.radialStrength.value;
+        savedRadialEnabled = params.radialEnabled.value;
+        params.radialEnabled.value = 1;
+        params.radialStrength.value = -(savedRadialStrength || 2.0);
       }
+    } else {
+      if (event.code === 'Digit1') goToScene(1);
+      if (event.code === 'Digit2') goToScene(2);
+      if (event.code === 'Digit3') goToScene(3);
+      if (event.code === 'Digit4') goToScene(4);
+      if (event.code === 'Digit5') goToScene(5);
+    }
+  });
+  
+  addEventListener('keyup', (event) => {
+    if (event.code === 'Space' && mode === 'LAB') {
+      params.radialEnabled.value = savedRadialEnabled;
+      params.radialStrength.value = savedRadialStrength;
     }
   });
 
@@ -222,15 +212,17 @@ async function main() {
 
   simulation.reset();
 
-  let lastTime = performance.now();
-  
-  renderer.setAnimationLoop((time) => {
-    const deltaSeconds = Math.min((time - lastTime) / 1000, 0.05);
-    lastTime = time;
-
-    updatePerformanceTransition(deltaSeconds);
-
-    if (!paused) simulation.stepSimulation();
+  // FRAME LOOP ------------------------------------------------------------
+  renderer.setAnimationLoop(() => {
+    if (!paused) {
+      if (mode === 'PERFORMANCE') {
+        params.radialStrength.value = lerp(params.radialStrength.value, sceneTarget.radialStrength, SCENE_LERP_SPEED);
+        params.vortexStrength.value = lerp(params.vortexStrength.value, sceneTarget.vortexStrength, SCENE_LERP_SPEED);
+        params.dragCoefficient.value = lerp(params.dragCoefficient.value, sceneTarget.dragCoefficient, SCENE_LERP_SPEED);
+        params.maxSpeed.value = lerp(params.maxSpeed.value, sceneTarget.maxSpeed, SCENE_LERP_SPEED);
+      }
+      simulation.stepSimulation();
+    }
     orbit.update();
     renderer.render(scene, camera);
   });
