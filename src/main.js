@@ -18,7 +18,7 @@ async function main() {
   }
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#03050a');
+  scene.background = new THREE.Color('#010206'); // Vacío del espacio ultra oscuro
 
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 100);
   camera.position.set(0, 0, 11);
@@ -40,7 +40,9 @@ async function main() {
     new THREE.SphereGeometry(0.12, 16, 12),
     new THREE.MeshBasicMaterial({ color: '#ffffff' })
   );
-  scene.add(attractorHelper);
+  // Ocultamos la esfera blanca para no arruinar la ilusión del agujero negro
+  attractorHelper.visible = false; 
+  
   const axes = new THREE.AxesHelper(1.5);
   scene.add(axes);
 
@@ -49,8 +51,9 @@ async function main() {
   const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const hit = new THREE.Vector3();
 
-  // El mouse SIEMPRE actualiza el atractor, sin importar el modo
+  // El mouse sigue interactuando con el panel en LAB
   addEventListener('pointermove', (event) => {
+    if (mode !== 'LAB') return;
     pointerNdc.x = (event.clientX / innerWidth) * 2 - 1;
     pointerNdc.y = -(event.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointerNdc, camera);
@@ -91,22 +94,31 @@ async function main() {
   hud.className = 'hud';
   document.body.append(hud);
 
+  // FÍSICA RADICAL: Cada etapa es drásticamente diferente
   const sceneTargets = {
-    1: { radialStrength: 0.0, vortexStrength: 0.0, dragCoefficient: 0.10, maxSpeed: 1.0 },
-    2: { radialStrength: 0.5, vortexStrength: 0.2, dragCoefficient: 0.08, maxSpeed: 2.0 },
-    3: { radialStrength: 1.0, vortexStrength: 1.0, dragCoefficient: 0.05, maxSpeed: 3.5 },
-    4: { radialStrength: 2.5, vortexStrength: 2.5, dragCoefficient: 0.03, maxSpeed: 5.0 },
-    5: { radialStrength: 4.0, vortexStrength: 4.5, dragCoefficient: 0.08, maxSpeed: 7.0 },
-    6: { radialStrength: 8.0, vortexStrength: 0.2, dragCoefficient: 0.01, maxSpeed: 12.0 },
+    // 1. Nebulosa oscura: Fricción alta, velocidad lenta, giro mínimo.
+    1: { radialStrength: 0.0, vortexStrength: 0.1, dragCoefficient: 0.20, maxSpeed: 0.8 },
+    // 2. Corrientes gravitacionales: Comienza una atracción sutil.
+    2: { radialStrength: 0.8, vortexStrength: 0.8, dragCoefficient: 0.10, maxSpeed: 2.0 },
+    // 3. Espiral de materia: Brazos galácticos definidos.
+    3: { radialStrength: 1.5, vortexStrength: 2.5, dragCoefficient: 0.05, maxSpeed: 4.0 },
+    // 4. Disco de acreción: Altísima rotación, mínima fricción (anillo brillante).
+    4: { radialStrength: 3.0, vortexStrength: 6.0, dragCoefficient: 0.02, maxSpeed: 7.0 },
+    // 5. Órbita crítica: Caída inminente, máxima tensión orbital.
+    5: { radialStrength: 6.0, vortexStrength: 10.0, dragCoefficient: 0.08, maxSpeed: 10.0 },
+    // 6. Colapso masivo (Singularidad): Cero rotación, succión violenta directa al centro.
+    6: { radialStrength: 15.0, vortexStrength: 0.0, dragCoefficient: 0.01, maxSpeed: 15.0 },
+    // 7. Supernova (Decaimiento pos-explosión).
     7: { radialStrength: -5.0, vortexStrength: 0.5, dragCoefficient: 0.05, maxSpeed: 15.0 }
   };
 
   const SCENE_NAMES = {
-    1: 'Nube en reposo', 2: 'Despertar', 3: 'Formación', 
-    4: 'Disco de acreción', 5: 'Fricción crítica', 6: 'Colapso total', 7: 'Supernova'
+    1: 'Materia oscura', 2: 'Corrientes', 3: 'Espiral', 
+    4: 'Disco de Acreción', 5: 'Órbita Crítica', 6: 'Colapso (Singularidad)', 7: 'Supernova'
   };
 
-  const SCENE_LERP_SPEED = 0.035;
+  // Interpolación muy lenta (0.02) para que las transiciones sean colosales y progresivas
+  const SCENE_LERP_SPEED = 0.02;
   let currentScene = 1;
   let sceneTarget = sceneTargets[1];
   let supernovaTimer = null;
@@ -116,16 +128,19 @@ async function main() {
     sceneTarget = sceneTargets[id];
     
     if (mode === 'PERFORMANCE') {
-      hud.innerHTML = `<strong>PERFORMANCE</strong> · <span class="scene-name">${id} · ${SCENE_NAMES[id]}</span> · 1–7: escenas`;
+      hud.innerHTML = `<strong>SINGULARIDAD</strong> · <span class="scene-name">${id} · ${SCENE_NAMES[id]}</span> · 1–7: transiciones`;
     }
 
     if (supernovaTimer) { clearTimeout(supernovaTimer); supernovaTimer = null; }
     
     if (id === 7) {
-      params.radialStrength.value = -35.0;
-      params.dragCoefficient.value = 0.0;
-      params.vortexStrength.value = 0.0;
-      supernovaTimer = setTimeout(() => goToScene(1), 1500); 
+      // 💥 SUPERNOVA FIX: Explosión instantánea
+      params.radialStrength.value = -40.0; // Rechazo masivo brutal
+      params.dragCoefficient.value = 0.0;  // Sin fricción espacial
+      params.vortexStrength.value = 0.0;   // Sin rotación
+      params.maxSpeed.value = 20.0;
+      
+      supernovaTimer = setTimeout(() => goToScene(1), 1800); 
     }
   };
 
@@ -136,11 +151,11 @@ async function main() {
     const lab = mode === 'LAB';
     panel.setVisible(lab);
     axes.visible = lab;
-    attractorHelper.visible = lab;
+    // Ocultamos ejes visuales en modo performance
     document.body.classList.toggle('hide-cursor', !lab);
   
     if (!lab) {
-      // Al entrar a performance, activamos las fuerzas pero dejamos que el atractor fluya con el mouse
+      params.attractor.value.set(0, 0, 0);
       params.radialEnabled.value = 1;
       params.vortexEnabled.value = 1;
       params.dragEnabled.value = 1;
@@ -231,8 +246,4 @@ async function main() {
 
 main().catch((error) => {
   console.error(error);
-  const pre = document.createElement('pre');
-  pre.style.cssText = 'position:fixed;inset:16px;white-space:pre-wrap;color:#fff;z-index:50';
-  pre.textContent = String(error?.stack || error);
-  document.body.append(pre);
 });
