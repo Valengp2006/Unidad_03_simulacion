@@ -16,8 +16,8 @@ import {
   uv,
   vec3,
   vec4,
-  sin,  // <-- Importamos matemáticas para la paleta procedural
-  cos
+  sin, // <-- Importamos sin para calcular colores
+  cos  // <-- Importamos cos para calcular colores
 } from 'three/tsl';
 
 export function createSimulation({ renderer, scene, params, count = 131072 }) {
@@ -93,29 +93,26 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const speed = velocityBuffer.toAttribute().length();
     const pos = positionBuffer.toAttribute();
     
-    // 1. Color Físico (Azul a Dorado según la velocidad)
+    // 1. Color dictado por la velocidad física (Azul a Dorado)
     const speedFactor = smoothstep(1.5, 6.0, speed);
     const slowColor = color('#3ea8ff'); 
     const fastColor = color('#fff4d6'); 
     const baseColor = mix(slowColor, fastColor, speedFactor);
     
-    // 2. Color Procedural Orgánico del Mouse
-    // Al usar senos y cosenos sobre la posición X e Y del mouse, generamos 
-    // una paleta completa que muta suavemente. El multiplicador (0.15) controla 
-    // qué tan rápido cambia el color al mover el mouse.
-    const r = sin(params.attractor.x.mul(0.15)).mul(0.5).add(0.5);
-    const g = cos(params.attractor.y.mul(0.15)).mul(0.5).add(0.5);
-    const b = sin(params.attractor.x.add(params.attractor.y).mul(0.15)).mul(0.5).add(0.5);
+    // 2. Colores infinitos: Muta basado en la posición del atractor (mouse)
+    // El multiplicador 0.3 controla qué tan rápido cambia el color al moverte
+    const r = sin(params.attractor.x.mul(0.3)).mul(0.5).add(0.5);
+    const g = cos(params.attractor.y.mul(0.3)).mul(0.5).add(0.5);
+    const b = sin(params.attractor.x.sub(params.attractor.y).mul(0.3)).mul(0.5).add(0.5);
     const auraColor = vec3(r, g, b);
     
-    // 3. Área de Influencia Global
+    // 3. Extensión masiva del aura
     const distToMouse = distance(pos, params.attractor);
-    // Cambiamos el radio de 3.0 a 25.0 para que la influencia se extienda a toda la nebulosa
-    const mouseFactor = smoothstep(25.0, 0.0, distToMouse); 
+    // Expandido a 20.0 para que se propague por todo el dibujo
+    const mouseFactor = smoothstep(20.0, 0.0, distToMouse); 
     
-    // Mezclamos. Usamos mul(0.85) para teñir la escena intensamente con el mouse, 
-    // pero sin borrar por completo los destellos dorados físicos del núcleo.
-    return vec4(mix(baseColor, auraColor, mouseFactor.mul(0.85)), 1.0);
+    // Mezcla de la física con el aura (el mul(0.8) evita que tape el dorado intenso)
+    return vec4(mix(baseColor, auraColor, mouseFactor.mul(0.8)), 1.0);
   })();
 
   material.opacityNode = step(uv().xy.sub(0.5).length(), 0.5);
