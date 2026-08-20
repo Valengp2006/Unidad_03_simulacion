@@ -3,6 +3,7 @@ import {
   Fn,
   If,
   color,
+  distance, // <-- Nueva función importada
   hash,
   instanceIndex,
   instancedArray,
@@ -26,7 +27,6 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const p = positionBuffer.element(i);
     const v = velocityBuffer.element(i);
 
-    // Generamos números aleatorios únicos por partícula
     const r1 = hash(i.add(uint(11)));
     const r2 = hash(i.add(uint(23)));
     const r3 = hash(i.add(uint(37)));
@@ -34,15 +34,10 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const r5 = hash(i.add(uint(71)));
     const r6 = hash(i.add(uint(89)));
 
-    // 1. FORMA ORGÁNICA (Nebulosa / Disco)
-    // Creamos una dirección aleatoria esférica y la normalizamos
     const dir = vec3(r1, r2, r3).sub(0.5).normalize();
-    // Determinamos un radio aleatorio (r4) escalado por los límites
     const radius = params.boundsSize.mul(0.4).mul(r4);
-    // Asignamos la posición y aplastamos el eje Y para que parezca un disco galáctico
     p.assign(vec3(dir.x, dir.y.mul(0.15), dir.z).mul(radius));
 
-    // Velocidad inicial suave
     v.assign(vec3(r4, r5, r6).sub(0.5).mul(params.initialSpeed));
   })().compute(count).setName('Initialize Particles');
 
@@ -56,11 +51,11 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     force.addAssign(params.wind.mul(params.windEnabled));
 
     const toAttractor = params.attractor.sub(p);
-    const distance = max(toAttractor.length(), params.softening);
-    const radialDirection = toAttractor.div(distance);
+    const distanceToAttractor = max(toAttractor.length(), params.softening);
+    const radialDirection = toAttractor.div(distanceToAttractor);
     const radialForce = radialDirection
       .mul(params.radialStrength)
-      .div(distance.pow(2))
+      .div(distanceToAttractor.pow(2))
       .mul(params.radialEnabled);
     force.addAssign(radialForce);
 
@@ -94,14 +89,21 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
 
   material.colorNode = Fn(() => {
     const speed = velocityBuffer.toAttribute().length();
+    const pos = positionBuffer.toAttribute();
     
-    // Transición basada en velocidad
-    const mixFactor = smoothstep(1.5, 6.0, speed);
+    // 1. Color dictado por la velocidad (Azul a Dorado)
+    const speedFactor = smoothstep(1.5, 6.0, speed);
+    const slowColor = color('#3ea8ff'); 
+    const fastColor = color('#fff4d6'); 
+    const baseColor = mix(slowColor, fastColor, speedFactor);
     
-    const slowColor = color('#3ea8ff'); // Reposo (Azul)
-    const fastColor = color('#fff4d6'); // Clímax (Dorado)
+    // 2. Color dictado por el campo de atracción del mouse (Magenta/Fucsia Cósmico)
+    const distToMouse = distance(pos, params.attractor);
+    // Las partículas dentro de un radio de 3.0 se tiñen gradualmente
+    const mouseFactor = smoothstep(3.0, 0.0, distToMouse); 
+    const auraColor = color('#ff1493'); // Puedes cambiar el '#ff1493' por cualquier otro color HEX
     
-    return vec4(mix(slowColor, fastColor, mixFactor), 1.0);
+    return vec4(mix(baseColor, auraColor, mouseFactor), 1.0);
   })();
 
   material.opacityNode = step(uv().xy.sub(0.5).length(), 0.5);
