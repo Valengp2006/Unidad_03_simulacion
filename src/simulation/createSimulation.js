@@ -9,7 +9,6 @@ import {
   max,
   mix,
   mod,
-  smoothstep,
   step,
   uint,
   uv,
@@ -18,9 +17,11 @@ import {
 } from 'three/tsl';
 
 export function createSimulation({ renderer, scene, params, count = 131072 }) {
+  // STATE -----------------------------------------------------------------
   const positionBuffer = instancedArray(count, 'vec3');
   const velocityBuffer = instancedArray(count, 'vec3');
 
+  // INITIALIZATION --------------------------------------------------------
   const initParticles = Fn(() => {
     const i = instanceIndex;
     const p = positionBuffer.element(i);
@@ -37,6 +38,7 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     v.assign(vec3(r4, r5, r6).sub(0.5).mul(params.initialSpeed));
   })().compute(count).setName('Initialize Particles');
 
+  // UPDATE / COMPUTE SHADER ----------------------------------------------
   const updateParticles = Fn(() => {
     const p = positionBuffer.element(instanceIndex);
     const v = velocityBuffer.element(instanceIndex);
@@ -44,8 +46,10 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const dt = params.dt.mul(params.timeScale);
     const force = vec3(0.0).toVar();
 
+    // 1) CONSTANT / WIND FORCE
     force.addAssign(params.wind.mul(params.windEnabled));
 
+    // 2) RADIAL FORCE
     const toAttractor = params.attractor.sub(p);
     const distance = max(toAttractor.length(), params.softening);
     const radialDirection = toAttractor.div(distance);
@@ -55,12 +59,15 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
       .mul(params.radialEnabled);
     force.addAssign(radialForce);
 
+    // 3) VORTEX FORCE
     const zAxis = vec3(0.0, 0.0, 1.0);
     const tangent = zAxis.cross(radialDirection);
     force.addAssign(tangent.mul(params.vortexStrength).mul(params.vortexEnabled));
 
+    // 4) LINEAR DRAG
     force.addAssign(v.mul(params.dragCoefficient).mul(params.dragEnabled).mul(-1.0));
 
+    // INTEGRATION
     v.addAssign(force.mul(dt));
 
     const speed = v.length();
@@ -74,6 +81,7 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     p.assign(mod(p.add(half), params.boundsSize).sub(half));
   })().compute(count).setName('Update Particles');
 
+  // RENDER ---------------------------------------------------------------
   const material = new THREE.SpriteNodeMaterial({
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -85,14 +93,13 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
 
   material.colorNode = Fn(() => {
     const speed = velocityBuffer.toAttribute().length();
+    const t = speed.div(params.maxSpeed).clamp(0.0, 1.0);
     
-    // Transición basada en la velocidad actual de la partícula
-    const mixFactor = smoothstep(1.5, 6.0, speed);
+    // Paleta de Singularidad
+    const slow = color('#3ea8ff');
+    const fast = color('#fff4d6');
     
-    const slowColor = color('#3ea8ff'); // Azul (reposo/bordes)
-    const fastColor = color('#fff4d6'); // Dorado (núcleo rápido)
-    
-    return vec4(mix(slowColor, fastColor, mixFactor), 1.0);
+    return vec4(mix(slow, fast, t), 1.0);
   })();
 
   material.opacityNode = step(uv().xy.sub(0.5).length(), 0.5);
@@ -102,13 +109,26 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
   mesh.frustumCulled = false;
   scene.add(mesh);
 
-  function reset() { renderer.compute(initParticles); }
-  function stepSimulation() { renderer.compute(updateParticles); }
+  function reset() {
+    renderer.compute(initParticles);
+  }
+
+  function stepSimulation() {
+    renderer.compute(updateParticles);
+  }
+
   function dispose() {
     geometry.dispose();
     material.dispose();
     scene.remove(mesh);
   }
 
-  return { count, positionBuffer, velocityBuffer, reset, stepSimulation, dispose };
+  return {
+    count,
+    positionBuffer,
+    velocityBuffer,
+    reset,
+    stepSimulation,
+    dispose
+  };
 }
