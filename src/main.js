@@ -49,8 +49,8 @@ async function main() {
   const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const hit = new THREE.Vector3();
 
+  // El mouse SIEMPRE actualiza el atractor, sin importar el modo
   addEventListener('pointermove', (event) => {
-    if (mode !== 'LAB') return;
     pointerNdc.x = (event.clientX / innerWidth) * 2 - 1;
     pointerNdc.y = -(event.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointerNdc, camera);
@@ -91,15 +91,14 @@ async function main() {
   hud.className = 'hud';
   document.body.append(hud);
 
-  // FÍSICA CORREGIDA: Construcción lógica hacia el clímax
   const sceneTargets = {
-    1: { radialStrength: 0.0, vortexStrength: 0.0, dragCoefficient: 0.10, maxSpeed: 1.0 },   // 1. Reposo absoluto
-    2: { radialStrength: 0.5, vortexStrength: 0.2, dragCoefficient: 0.08, maxSpeed: 2.0 },   // 2. Comienza a atraerse
-    3: { radialStrength: 1.0, vortexStrength: 1.0, dragCoefficient: 0.05, maxSpeed: 3.5 },   // 3. Empieza a girar (Espiral)
-    4: { radialStrength: 2.5, vortexStrength: 2.5, dragCoefficient: 0.03, maxSpeed: 5.0 },   // 4. Disco apretado y rápido
-    5: { radialStrength: 4.0, vortexStrength: 4.5, dragCoefficient: 0.08, maxSpeed: 7.0 },   // 5. Fricción crítica (torbellino violento)
-    6: { radialStrength: 8.0, vortexStrength: 0.2, dragCoefficient: 0.01, maxSpeed: 12.0 },  // 6. Colapso (se apaga el vórtice, succión total al centro)
-    7: { radialStrength: -5.0, vortexStrength: 0.5, dragCoefficient: 0.05, maxSpeed: 15.0 }  // 7. Supernova (estado de decaimiento post-explosión)
+    1: { radialStrength: 0.0, vortexStrength: 0.0, dragCoefficient: 0.10, maxSpeed: 1.0 },
+    2: { radialStrength: 0.5, vortexStrength: 0.2, dragCoefficient: 0.08, maxSpeed: 2.0 },
+    3: { radialStrength: 1.0, vortexStrength: 1.0, dragCoefficient: 0.05, maxSpeed: 3.5 },
+    4: { radialStrength: 2.5, vortexStrength: 2.5, dragCoefficient: 0.03, maxSpeed: 5.0 },
+    5: { radialStrength: 4.0, vortexStrength: 4.5, dragCoefficient: 0.08, maxSpeed: 7.0 },
+    6: { radialStrength: 8.0, vortexStrength: 0.2, dragCoefficient: 0.01, maxSpeed: 12.0 },
+    7: { radialStrength: -5.0, vortexStrength: 0.5, dragCoefficient: 0.05, maxSpeed: 15.0 }
   };
 
   const SCENE_NAMES = {
@@ -123,12 +122,9 @@ async function main() {
     if (supernovaTimer) { clearTimeout(supernovaTimer); supernovaTimer = null; }
     
     if (id === 7) {
-      // 💥 SUPERNOVA FIX: Rompemos la interpolación (lerp) aplicando valores extremos instantáneamente
-      params.radialStrength.value = -35.0; // Repulsión masiva en el frame 1
-      params.dragCoefficient.value = 0.0;  // Sin fricción para que salgan disparadas
-      params.vortexStrength.value = 0.0;   // Eliminamos la rotación de golpe
-      
-      // Tras 1.5 segundos de explosión, la nube vuelve a la escena 1 (Reposo) sola
+      params.radialStrength.value = -35.0;
+      params.dragCoefficient.value = 0.0;
+      params.vortexStrength.value = 0.0;
       supernovaTimer = setTimeout(() => goToScene(1), 1500); 
     }
   };
@@ -144,8 +140,7 @@ async function main() {
     document.body.classList.toggle('hide-cursor', !lab);
   
     if (!lab) {
-      params.attractor.value.set(0, 0, 0);
-      attractorHelper.position.set(0, 0, 0);
+      // Al entrar a performance, activamos las fuerzas pero dejamos que el atractor fluya con el mouse
       params.radialEnabled.value = 1;
       params.vortexEnabled.value = 1;
       params.dragEnabled.value = 1;
@@ -219,7 +214,6 @@ async function main() {
 
   simulation.reset();
 
-  // FRAME LOOP
   renderer.setAnimationLoop(() => {
     if (!paused) {
       if (mode === 'PERFORMANCE') {
