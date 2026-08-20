@@ -66,14 +66,16 @@ export function createLabPanel({ params, onReset, onPreset, onModeChange, onPaus
   const refreshers = [];
   const panel = document.createElement('aside');
   panel.className = 'panel';
+  
+  // Título y descripción adaptados a la obra
   panel.innerHTML = `
-    <h1>U3 · Forces Instrument</h1>
-    <p>LAB: aísla fuerzas, predice y prueba. <strong>P</strong> cambia a PERFORMANCE.</p>
+    <h1>Singularidad · Panel LAB</h1>
+    <p>Aísla y calibra las fuerzas gravitacionales. <strong>P</strong> inicia la PERFORMANCE.</p>
   `;
 
   const sim = document.createElement('div');
   sim.className = 'group';
-  sim.innerHTML = '<h2>Simulación</h2>';
+  sim.innerHTML = '<h2>Variables Físicas</h2>';
   panel.append(sim);
 
   const state = {
@@ -93,14 +95,14 @@ export function createLabPanel({ params, onReset, onPreset, onModeChange, onPaus
 
   const force = document.createElement('div');
   force.className = 'group';
-  force.innerHTML = '<h2>Fuerzas</h2>';
+  force.innerHTML = '<h2>Campos de Fuerza</h2>';
   panel.append(force);
 
-  refreshers.push(checkRow(force, 'Radial', params.radialEnabled.value > 0, (v) => params.radialEnabled.value = v ? 1 : 0, () => params.radialEnabled.value > 0));
-  refreshers.push(rangeRow(force, 'radialStrength', state, 'radialStrength', -8, 8, 0.05, (v) => params.radialStrength.value = v, () => params.radialStrength.value));
-  refreshers.push(checkRow(force, 'Vórtice', params.vortexEnabled.value > 0, (v) => params.vortexEnabled.value = v ? 1 : 0, () => params.vortexEnabled.value > 0));
+  refreshers.push(checkRow(force, 'Gravedad (Radial)', params.radialEnabled.value > 0, (v) => params.radialEnabled.value = v ? 1 : 0, () => params.radialEnabled.value > 0));
+  refreshers.push(rangeRow(force, 'radialStrength', state, 'radialStrength', -15, 10, 0.05, (v) => params.radialStrength.value = v, () => params.radialStrength.value));
+  refreshers.push(checkRow(force, 'Rotación (Vórtice)', params.vortexEnabled.value > 0, (v) => params.vortexEnabled.value = v ? 1 : 0, () => params.vortexEnabled.value > 0));
   refreshers.push(rangeRow(force, 'vortexStrength', state, 'vortexStrength', -8, 8, 0.05, (v) => params.vortexStrength.value = v, () => params.vortexStrength.value));
-  refreshers.push(checkRow(force, 'Drag', params.dragEnabled.value > 0, (v) => params.dragEnabled.value = v ? 1 : 0, () => params.dragEnabled.value > 0));
+  refreshers.push(checkRow(force, 'Fricción (Drag)', params.dragEnabled.value > 0, (v) => params.dragEnabled.value = v ? 1 : 0, () => params.dragEnabled.value > 0));
   refreshers.push(rangeRow(force, 'dragCoefficient', state, 'dragCoefficient', 0, 1, 0.01, (v) => params.dragCoefficient.value = v, () => params.dragCoefficient.value));
   refreshers.push(checkRow(force, 'Viento', params.windEnabled.value > 0, (v) => params.windEnabled.value = v ? 1 : 0, () => params.windEnabled.value > 0));
   refreshers.push(rangeRow(force, 'wind.x', state, 'windX', -4, 4, 0.05, (v) => params.wind.value.x = v, () => params.wind.value.x));
@@ -108,23 +110,25 @@ export function createLabPanel({ params, onReset, onPreset, onModeChange, onPaus
 
   const tests = document.createElement('div');
   tests.className = 'group';
-  tests.innerHTML = '<h2>Pruebas de comportamiento</h2><p>Antes de pulsar una prueba, predice qué debería ocurrir.</p>';
+  tests.innerHTML = '<h2>Estados Base</h2><p>Prueba el comportamiento aislado de la materia.</p>';
   panel.append(tests);
+  
+  // Botones renombrados para coincidir con la lógica astrofísica de tu main.js
   for (const [id, label] of [
-    ['inertia', '1 · Inercia'],
-    ['wind', '2 · Fuerza constante +X'],
-    ['attract', '3 · Atracción'],
-    ['repel', '4 · Repulsión'],
-    ['vortex', '5 · Vórtice']
+    ['inertia', '1 · Dispersión (Inercia)'],
+    ['wind', '2 · Corriente Estelar'],
+    ['attract', '3 · Atracción Masiva'],
+    ['repel', '4 · Rechazo (Repulsión)'],
+    ['vortex', '5 · Sistema Orbital']
   ]) button(tests, label, () => onPreset(id));
 
   const actions = document.createElement('div');
   actions.className = 'group';
   actions.innerHTML = '<h2>Acciones</h2>';
   panel.append(actions);
-  button(actions, 'Reset', onReset);
-  button(actions, 'Pausar / continuar', () => onPauseChange());
-  button(actions, 'LAB / PERFORMANCE', () => onModeChange());
+  button(actions, 'Reiniciar simulación', onReset);
+  button(actions, 'Pausar / Continuar', () => onPauseChange());
+  button(actions, 'ENTRAR A PERFORMANCE', () => onModeChange());
 
   document.body.append(panel);
 
