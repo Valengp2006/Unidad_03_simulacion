@@ -9,6 +9,7 @@ import {
   max,
   mix,
   mod,
+  smoothstep,
   step,
   uint,
   uv,
