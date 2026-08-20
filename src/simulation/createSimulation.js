@@ -4,6 +4,7 @@ import {
   If,
   color,
   distance,
+  length, // <-- Importante: usado para calcular la distancia al centro exacto
   hash,
   instanceIndex,
   instancedArray,
@@ -16,8 +17,8 @@ import {
   uv,
   vec3,
   vec4,
-  sin, // <-- Importamos sin para calcular colores
-  cos  // <-- Importamos cos para calcular colores
+  sin,
+  cos
 } from 'three/tsl';
 
 export function createSimulation({ renderer, scene, params, count = 131072 }) {
@@ -36,9 +37,10 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const r5 = hash(i.add(uint(71)));
     const r6 = hash(i.add(uint(89)));
 
+    // Nacimiento en forma de disco galáctico extendido
     const dir = vec3(r1, r2, r3).sub(0.5).normalize();
-    const radius = params.boundsSize.mul(0.4).mul(r4);
-    p.assign(vec3(dir.x, dir.y.mul(0.15), dir.z).mul(radius));
+    const radius = params.boundsSize.mul(0.45).mul(r4);
+    p.assign(vec3(dir.x, dir.y.mul(0.12), dir.z).mul(radius));
 
     v.assign(vec3(r4, r5, r6).sub(0.5).mul(params.initialSpeed));
   })().compute(count).setName('Initialize Particles');
@@ -93,29 +95,45 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const speed = velocityBuffer.toAttribute().length();
     const pos = positionBuffer.toAttribute();
     
-    // 1. Color dictado por la velocidad física (Azul a Dorado)
-    const speedFactor = smoothstep(1.5, 6.0, speed);
-    const slowColor = color('#3ea8ff'); 
-    const fastColor = color('#fff4d6'); 
-    const baseColor = mix(slowColor, fastColor, speedFactor);
+    // TEMPERATURA CÓSMICA (4 fases de color por aceleración)
+    const color1 = color('#020612'); // Vacío frío (casi negro espacial)
+    const color2 = color('#2b8bf2'); // Azul estelar
+    const color3 = color('#ff5e00'); // Fuego cósmico naranja/rojo
+    const color4 = color('#ffffff'); // Núcleo blanco de Rayos X
     
-    // 2. Colores infinitos: Muta basado en la posición del atractor (mouse)
-    // El multiplicador 0.3 controla qué tan rápido cambia el color al moverte
-    const r = sin(params.attractor.x.mul(0.3)).mul(0.5).add(0.5);
-    const g = cos(params.attractor.y.mul(0.3)).mul(0.5).add(0.5);
-    const b = sin(params.attractor.x.sub(params.attractor.y).mul(0.3)).mul(0.5).add(0.5);
-    const auraColor = vec3(r, g, b);
+    // Umbrales de transición de velocidad para los 4 colores
+    const t1 = smoothstep(0.2, 3.0, speed);
+    const t2 = smoothstep(3.0, 7.0, speed);
+    const t3 = smoothstep(7.0, 12.0, speed);
     
-    // 3. Extensión masiva del aura
+    const mix1 = mix(color1, color2, t1);
+    const mix2 = mix(mix1, color3, t2);
+    const baseColor = mix(mix2, color4, t3);
+    
+    // Interacción anómala sutil vinculada al atractor
     const distToMouse = distance(pos, params.attractor);
-    // Expandido a 20.0 para que se propague por todo el dibujo
-    const mouseFactor = smoothstep(20.0, 0.0, distToMouse); 
+    const mouseFactor = smoothstep(12.0, 0.0, distToMouse); 
     
-    // Mezcla de la física con el aura (el mul(0.8) evita que tape el dorado intenso)
-    return vec4(mix(baseColor, auraColor, mouseFactor.mul(0.8)), 1.0);
+    const r = sin(params.attractor.x.mul(0.4)).mul(0.5).add(0.5);
+    const b = cos(params.attractor.y.mul(0.4)).mul(0.5).add(0.5);
+    const auraColor = vec3(r, 0.1, b); // Tonos púrpuras/violetas oscuros
+    
+    return vec4(mix(baseColor, auraColor, mouseFactor.mul(0.3)), 1.0);
   })();
 
-  material.opacityNode = step(uv().xy.sub(0.5).length(), 0.5);
+  material.opacityNode = Fn(() => {
+    const pos = positionBuffer.toAttribute();
+    
+    // EL HORIZONTE DE EVENTOS: Partículas cerca del origen (0,0,0) desaparecen
+    const distFromCenter = length(pos);
+    const eventHorizon = smoothstep(0.2, 1.2, distFromCenter);
+    
+    // Forma circular del sprite
+    const spriteShape = step(uv().xy.sub(0.5).length(), 0.5);
+    
+    // Combinamos el sprite con la máscara de oscuridad central
+    return spriteShape.mul(eventHorizon);
+  })();
 
   const geometry = new THREE.PlaneGeometry(1, 1);
   const mesh = new THREE.InstancedMesh(geometry, material, count);
