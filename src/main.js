@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
+import { uniform } from 'three/tsl'; // <-- Importamos uniform para inyectar la variable
 import './styles.css';
 
 import { createParameters } from './simulation/parameters.js';
@@ -34,6 +35,9 @@ async function main() {
   orbit.target.set(0, 0, 0);
 
   const params = createParameters();
+  // CREAMOS UNA VARIABLE EXCLUSIVA PARA EL COLOR DEL MOUSE
+  params.mousePos = uniform(new THREE.Vector3(0, 0, 0)); 
+  
   const simulation = createSimulation({ renderer, scene, params, count: PARTICLE_COUNT });
 
   const attractorHelper = new THREE.Mesh(
@@ -50,14 +54,20 @@ async function main() {
   const interactionPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const hit = new THREE.Vector3();
 
+  // SEPARACIÓN DE FÍSICA Y COLOR
   addEventListener('pointermove', (event) => {
-    if (mode !== 'LAB') return;
     pointerNdc.x = (event.clientX / innerWidth) * 2 - 1;
     pointerNdc.y = -(event.clientY / innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointerNdc, camera);
     if (raycaster.ray.intersectPlane(interactionPlane, hit)) {
-      params.attractor.value.copy(hit);
-      attractorHelper.position.copy(hit);
+      // 1. La variable de color SIEMPRE persigue al mouse
+      params.mousePos.value.copy(hit);
+      
+      // 2. La variable de gravedad SOLO persigue al mouse en modo LAB
+      if (mode === 'LAB') {
+        params.attractor.value.copy(hit);
+        attractorHelper.position.copy(hit);
+      }
     }
   });
 
@@ -71,7 +81,6 @@ async function main() {
   hud.className = 'hud';
   document.body.append(hud);
 
-  // LOS 7 ESTADOS DE LA OBRA
   const sceneTargets = {
     1: { radialStrength: 0.0, vortexStrength: 0.1, dragCoefficient: 0.20, maxSpeed: 0.8 },
     2: { radialStrength: 0.8, vortexStrength: 0.8, dragCoefficient: 0.10, maxSpeed: 2.0 },
@@ -87,7 +96,6 @@ async function main() {
   let sceneTarget = sceneTargets[1];
   let supernovaTimer = null;
 
-  // Lógica para aplicar estado en Modo LAB (Inmediato)
   const applyPreset = (id) => {
     if (id >= 1 && id <= 7) {
       const target = sceneTargets[id];
@@ -108,12 +116,10 @@ async function main() {
         params.maxSpeed.value = target.maxSpeed;
       }
       
-      // Actualiza los sliders del panel para inspeccionar
       panel?.refresh();
     }
   };
 
-  // Lógica para aplicar estado en Modo PERFORMANCE (Transición visual)
   const goToScene = (id) => {
     currentScene = id;
     sceneTarget = sceneTargets[id];
@@ -138,11 +144,10 @@ async function main() {
     axes.visible = lab;
     
     document.body.classList.toggle('hide-cursor', !lab);
-    
-    // MAGIA: El texto y el HUD se apagan por completo si no estamos en LAB
     hud.style.display = lab ? 'block' : 'none';
   
     if (!lab) {
+      // Bloqueamos la gravedad al centro exacto
       params.attractor.value.set(0, 0, 0);
       params.radialEnabled.value = 1;
       params.vortexEnabled.value = 1;
@@ -161,14 +166,13 @@ async function main() {
   panel = createLabPanel({
     params,
     onReset: () => { simulation.reset(); goToScene(1); },
-    onPreset: applyPreset, // Conecta los botones del panel con applyPreset
+    onPreset: applyPreset,
     onModeChange: () => setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB'),
     onPauseChange: () => paused = !paused
   });
 
   setMode('LAB');
 
-  // Mapeo unificado de teclado
   addEventListener('keydown', (event) => {
     if (event.repeat) return;
     if (event.code === 'KeyP') setMode(mode === 'LAB' ? 'PERFORMANCE' : 'LAB');
@@ -177,14 +181,13 @@ async function main() {
       if (mode === 'PERFORMANCE') goToScene(1);
     }
   
-    // Las teclas 1 a 7 funcionan en ambos modos
     const match = event.code.match(/^Digit([1-7])$/);
     if (match) {
       const id = parseInt(match[1], 10);
       if (mode === 'LAB') {
-        applyPreset(id); // Instantáneo + actualiza Sliders
+        applyPreset(id);
       } else {
-        goToScene(id);   // Transición + Clímax
+        goToScene(id);
       }
     }
 
