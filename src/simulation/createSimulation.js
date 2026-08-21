@@ -4,7 +4,7 @@ import {
   If,
   color,
   distance,
-  length, // <-- Importante: usado para calcular la distancia al centro exacto
+  length,
   hash,
   instanceIndex,
   instancedArray,
@@ -95,13 +95,12 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const speed = velocityBuffer.toAttribute().length();
     const pos = positionBuffer.toAttribute();
     
-    // TEMPERATURA CÓSMICA (4 fases de color por aceleración)
-    const color1 = color('#020612'); // Vacío frío (casi negro espacial)
-    const color2 = color('#2b8bf2'); // Azul estelar
-    const color3 = color('#ff5e00'); // Fuego cósmico naranja/rojo
-    const color4 = color('#ffffff'); // Núcleo blanco de Rayos X
+    // TEMPERATURA CÓSMICA (Físicas del núcleo)
+    const color1 = color('#020612'); 
+    const color2 = color('#2b8bf2'); 
+    const color3 = color('#ff5e00'); 
+    const color4 = color('#ffffff'); 
     
-    // Umbrales de transición de velocidad para los 4 colores
     const t1 = smoothstep(0.2, 3.0, speed);
     const t2 = smoothstep(3.0, 7.0, speed);
     const t3 = smoothstep(7.0, 12.0, speed);
@@ -110,13 +109,14 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
     const mix2 = mix(mix1, color3, t2);
     const baseColor = mix(mix2, color4, t3);
     
-    // Interacción anómala sutil vinculada al atractor
-    const distToMouse = distance(pos, params.attractor);
+    // AURA INTERACTIVA INDEPENDIENTE (Lee la variable inyectada params.mousePos)
+    const distToMouse = distance(pos, params.mousePos);
     const mouseFactor = smoothstep(12.0, 0.0, distToMouse); 
     
-    const r = sin(params.attractor.x.mul(0.4)).mul(0.5).add(0.5);
-    const b = cos(params.attractor.y.mul(0.4)).mul(0.5).add(0.5);
-    const auraColor = vec3(r, 0.1, b); // Tonos púrpuras/violetas oscuros
+    // Variación del color procedimental
+    const r = sin(params.mousePos.x.mul(0.4)).mul(0.5).add(0.5);
+    const b = cos(params.mousePos.y.mul(0.4)).mul(0.5).add(0.5);
+    const auraColor = vec3(r, 0.1, b);
     
     return vec4(mix(baseColor, auraColor, mouseFactor.mul(0.3)), 1.0);
   })();
@@ -124,14 +124,11 @@ export function createSimulation({ renderer, scene, params, count = 131072 }) {
   material.opacityNode = Fn(() => {
     const pos = positionBuffer.toAttribute();
     
-    // EL HORIZONTE DE EVENTOS: Partículas cerca del origen (0,0,0) desaparecen
     const distFromCenter = length(pos);
     const eventHorizon = smoothstep(0.2, 1.2, distFromCenter);
     
-    // Forma circular del sprite
     const spriteShape = step(uv().xy.sub(0.5).length(), 0.5);
     
-    // Combinamos el sprite con la máscara de oscuridad central
     return spriteShape.mul(eventHorizon);
   })();
 
